@@ -1,0 +1,86 @@
+```{r}
+library(survival)
+library(foreign)
+library(beeswarm)
+library(psych)
+library(multcomp)
+
+#Google Drive file on a Mac
+DATA <- read.csv("/Users/rachelrigg/Google Drive/Lab/Projects/Hsp70/Flow chamber/Stats/Flow chamber data VER PIF.csv")
+
+#Dropbox file on a Mac
+DATA <- read.csv("/Users/rachelrigg/Dropbox/PhD/Lab/Projects/...")
+
+#File on the X drive
+DATA <- read.csv("X:/SOM/BME/Projects/omccarty_lab/Rachel/Projects/Hsp70/Flow chamber/Stats/Flow chamber data VER PIF.csv")
+
+DATA$trt <- relevel(DATA$trt, ref="A") #moves A to first - only do this if the order is not what you want
+DATA$trt <- relevel(DATA$trt, ref="B") #moves B to first, etc
+
+DATA$date <- as.factor(DATA$date)
+DATA$y <- DATA$y/100 #changes y to a fractional value, necessary only for running the quasibinomial model
+DATA$y <- DATA$y*100 #undoes the previous step if you change your mind
+
+describeBy(DATA$y, group=DATA$trt, mat=TRUE) # display table of mean, sd, median, etc.
+boxplot(y ~ trt, data = DATA,
+        outline = FALSE,
+        boxwex = 0.4,
+        xlab="Treatment", 
+        ylab="Percent",
+        main = 'boxplot + beeswarm')
+
+beeswarm(y ~ trt, data = DATA, 
+         method="center", 
+         pch=16, #plotting character
+         col
+         bty='l',
+         add = TRUE) # show results in scatter plot
+
+
+bartlett.test(y ~ trt, data=DATA) # Bartlett test of Homogeneity of Variances. If any p value < 0.05, log-transform the data. 
+
+DATA$y <- log(DATA$y) # natural log transformation, try this if variances are not homogenous
+beeswarm(logy ~ trt , data = DATA, method="center", xlab="Treatment", ylab="Outcome",pch=16, bty='l') # show results in scatter plot
+
+
+a1 <- aov(y ~ trt + C(date, sum), data=DATA) # two-way anova, this doesn't show everything, but we need it to use in TukeyHSD
+summary(a1)
+a2 <- lm(y ~ trt + C(date, sum), data=DATA) # two-way anova of results (y) by treatment and date (date should be non-significant). The intercept should be DMSO if you releveled it in the beginning.
+summary(a2)
+
+TukeyHSD(a1, conf.level=0.95) # runs all the pair-wise comparisons
+
+pairwise.t.test(DATA$y, DATA$trt, p.adjust="holm", pool.sd=T) # another post-hoc method instead of Tukey. You can also try "bonferroni" as a p.adjust method instead of holm.
+
+t.test(DATA$y[DATA$trt=="ponat"], DATA$y[DATA$trt=="DMSO"]) # basically just a student's t test
+summary(lm(formula = y ~ trt, data = DATA[which(DATA$trt == "DMSO" | DATA$trt == "ponat"), ])) #just comparing this to the t-test above out of curiosity, it's not really a valid method
+
+t.test(DATA$y[DATA$date=="41718"], DATA$y[DATA$date=="41716"]) # checking for significance of different dates, this doesn't even work
+
+a3 <- aov(y ~ trt, data=DATA) # one-way anova, this doesn't show everything, but we need it to use in TukeyHSD
+summary(a3)
+
+TukeyHSD(a3, conf.level=0.95) # runs all the pair-wise comparisons
+
+
+f1 <- glm(formula = y ~ C(date, sum) + trt, family=quasibinomial(link='identity'), data = DATA, x = T, y = T) #'identity' models the change as a percentage point increase or decrease (subtraction or addition)b
+f1 <- glm(formula = y ~ C(date, sum) + trt, family=quasibinomial(link='log'), data = DATA, x = T, y = T) #'log' models it as a percent increase relative to the control
+summary(f1)
+cbind(exp(f1$coeff)) # translates the log-transformed values to percent changes
+
+#Non-parametric method
+wilcox.test(DATA$y[DATA$trt=="ponat"], DATA$y[DATA$trt=="DMSO"], paired=FALSE)
+kruskal.test(y~trt, data=DATA) #analogous to ANOVA for non-parametric
+
+DATA$ry <- rank(DATA$y) #pairwise comparison procedure
+a1 <- aov(ry~trt,data=DATA)
+a1 <- aov(ry~trt,data=DATA)
+summary(a1)
+
+var(DATA$ry) #computes the variance of the ranks
+qtukey(0.95,4, df=10000) # first is confidence, second is number of groups, third is always 10,000
+describeBy(DATA$y, group=DATA$trt, mat=TRUE)
+
+
+```
+
